@@ -3,3 +3,7 @@ python-dotenv>=1.0.0
 pyyaml>=6.0
 rich>=14.0.0
 typing_extensions>=4.5,<5
+
+# Unity Agent (scripts/UnityCode.py) only. InplusCode.py runs without this —
+# the MCP SDK is imported lazily and reuses anthropic's httpx/pydantic.
+mcp>=1.2,<2

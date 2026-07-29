@@ -146,7 +146,6 @@ python s19f_result_control/code.py
 <summary>深入：这段代码在生产里长什么样</summary>
 
 - 真实格式化见 [`scripts/unity_agent/result_formatter.py`](../scripts/unity_agent/result_formatter.py)：`format_result` 处理 text / image / embedded resource / structuredContent，`MAX_RESULT_CHARS=20000`，图片走 `_IMAGE_PLACEHOLDER`；与 s08 的 large-output hook、context compact 兼容。
-- 真实验证见 [`scripts/unity_agent/verification.py`](../scripts/unity_agent/verification.py)：`wait_for_compile(state_reader)` 读 `mcpforunity://editor/state`，`read_console_errors(caller)` 按 `data` 列表长度数错误。
 - 真实收尾见 [`scripts/unity_agent/bootstrap.py`](../scripts/unity_agent/bootstrap.py)（runtime + 静态诊断工具 + system 附录）与 [`scripts/skills/unity-agent/`](../scripts/skills/unity-agent/)（领域规范）；真机垂直验收（Observe→Act→Verify 全流程）由这套 runtime 驱动，直接连真实 Unity MCP 跑。
 - 真机验收结果：在真实 Unity 里建了红色 AgentCube@[0,1,0] + Rigidbody，Console 0 错误，存了场景，截了图——17 步全过。截图默认被 `.gitignore` 忽略，session_state 记录每步 operation id。
 

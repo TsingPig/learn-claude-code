@@ -146,7 +146,6 @@ Return to the main line, [s20 Comprehensive](../s20_comprehensive/) — all mech
 <summary>Deep dive: what this looks like in production</summary>
 
 - The real formatter is [`scripts/unity_agent/result_formatter.py`](../scripts/unity_agent/result_formatter.py): `format_result` handles text / image / embedded resource / structuredContent, `MAX_RESULT_CHARS=20000`, images use `_IMAGE_PLACEHOLDER`; compatible with s08's large-output hook and context compaction.
-- The real verification is [`scripts/unity_agent/verification.py`](../scripts/unity_agent/verification.py): `wait_for_compile(state_reader)` reads `mcpforunity://editor/state`, `read_console_errors(caller)` counts errors by the `data` list length.
 - The real wrap-up is [`scripts/unity_agent/bootstrap.py`](../scripts/unity_agent/bootstrap.py) (runtime + static diagnostic tools + system appendix) and [`scripts/skills/unity-agent/`](../scripts/skills/unity-agent/) (domain rules); the real vertical acceptance run (the full Observe→Act→Verify flow) is driven by this runtime against a live Unity MCP.
 - Real acceptance result: a red AgentCube@[0,1,0] + Rigidbody in real Unity, 0 Console errors, scene saved, screenshot taken — all 17 steps passed. Screenshots are gitignored by default; session_state records an operation id per step.
 

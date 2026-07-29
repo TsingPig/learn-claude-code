@@ -179,7 +179,10 @@ def spawn_subagent(description: str) -> str:
         #     tools=SUB_TOOLS,
         #     max_tokens=8000,
         # )
-        response = stream.create_message(model=MODEL, system=SYSTEM, messages=messages, tools=TOOLS, max_tokens=8000, timeout=30)  # fmt: skip
+        # s06 fix: the subagent must be offered exactly the tools it can execute.
+        # It executes via SUB_HANDLERS, so it must be shown SUB_TOOLS (not TOOLS).
+        # Otherwise the model could pick a tool (task/compact/Unity) with no handler.
+        response = stream.create_message(model=MODEL, system=SYSTEM, messages=messages, tools=SUB_TOOLS, max_tokens=8000, timeout=30)  # fmt: skip
 
         messages.append({"role": "assistant", "content": response.content})
 

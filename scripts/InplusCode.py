@@ -26,7 +26,7 @@ MAX_REACTIVE_RETRIES = 1  # retry limit for reactive compact
 
 
 # ── The core pattern: a while loop that calls tools until the model stops ──
-def agent_loop(messages: list):
+def agent_loop(messages: list, *, prompt: str = SYSTEM, tools: list = TOOLS, handlers: dict = TOOL_HANDLERS):
     global rounds_since_todo
     reactive_retries = 0
     while True:
@@ -50,7 +50,7 @@ def agent_loop(messages: list):
 
         try:
             # response = client.messages.create(model=MODEL,system=SYSTEM,messages=messages,tools=TOOLS,max_tokens=15000,timeout=180,) # fmt: skip
-            response = stream.create_message(model=MODEL, system=SYSTEM, messages=messages, tools=TOOLS, max_tokens=15000, timeout=180)  # fmt: skip
+            response = stream.create_message(model=MODEL, system=prompt, messages=messages, tools=tools, max_tokens=15000, timeout=180)  # fmt: skip
             reactive_retries = 0  # reset on successful API call
         except Exception as e:
             if ("prompt_too_long" in str(e).lower() or "too many tokens" in str(e).lower()) and reactive_retries < MAX_REACTIVE_RETRIES: # fmt: skip
@@ -100,17 +100,11 @@ def agent_loop(messages: list):
                     # s04 change: hook replaces hard-coded check_permission()
                     blocked = trigger_hooks("PreToolUse", block)
                     if blocked:  # 拦截本次工具调用
-                        results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": str(blocked),
-                            }
-                        )
+                        results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(blocked)})
                         continue
 
                     # ── Tool execution ────────────────────────────────────────
-                    handler = TOOL_HANDLERS.get(block.name)
+                    handler = handlers.get(block.name)
                     try:  # 拦截异常
 
                         output = handler(**block.input) if handler else f"Unknown: {block.name}" # fmt: skip
@@ -124,13 +118,7 @@ def agent_loop(messages: list):
                     if block.name == "todo_write":
                         rounds_since_todo = 0
 
-                    results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": output,
-                        }
-                    )
+                    results.append({"type": "tool_result", "tool_use_id": block.id, "content": output})
             else:  # 只有没有遇到 compact/break 时才执行
                 # Feed tool results back, loop continues
                 messages.append({"role": "user", "content": results})

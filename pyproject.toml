@@ -1,2 +1,14 @@
 [tool.black]
 line-length = 140
+skip-magic-trailing-comma = true
+
+[tool.ruff]
+line-length = 140
+
+[tool.ruff.lint]
+# Report a line only when it exceeds the configured 140-character limit.
+extend-select = ["E501"]
+
+[tool.ruff.format]
+# Keep long expressions on one line while they fit within 140 characters.
+skip-magic-trailing-comma = true
