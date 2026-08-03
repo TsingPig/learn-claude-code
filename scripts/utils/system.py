@@ -20,8 +20,15 @@ def load_config(path="scripts/config.yaml") -> dict:
 WORKDIR = Path(load_config().get("paths", {}).get("workspace", os.getcwd()))
 
 
-MESSAGES_DIR = WORKDIR / ".inpluscode_cache" / ".messages"
-TOOL_RESULTS_DIR = WORKDIR / ".inpluscode_cache" / ".task_outputs" / "tool-results"
+MESSAGES_DIR = WORKDIR / ".inpluscode" / ".sessions"  # WORKDIR / ".transcripts"
+TOOL_RESULTS_DIR = WORKDIR / ".inpluscode" / ".task_outputs" / "tool-results"  # WORKDIR / ".task_outputs" / "tool-results"
+
+MEMORY_DIR = WORKDIR / ".inpluscode" / ".memory"  # WORKDIR / ".memory"
+
+
+MEMORY_INDEX = MEMORY_DIR / "MEMORY.md"
+
+MEMORY_DIR_REL = ".inpluscode/.memory"
 
 MODEL = os.getenv("MODEL_ID")
 
@@ -56,6 +63,7 @@ skill_registry.scan_skills()
 
 _catalog = skill_registry.list_skills()
 
+
 # s07: Build SYSTEM prompt with skill catalog injected at startup.
 SYSTEM = (
     f"You are a coding agent at {WORKDIR}. "
@@ -66,6 +74,11 @@ SYSTEM = (
     "For separate task, use the task tool to delegate and spawn a subagent. "
     f"Skills available:\n{_catalog}\n"
     "Use load_skill to get full details when needed. "
+    # s09 change: memory protocal
+    "\nMemory: durable user preferences and project facts are stored as markdown files "
+    f"under {MEMORY_DIR_REL}/. A <project_memory> index is provided at the start of the conversation."
+    " Consult it first; use read_file to open a specific memory file only when its description is relevant."
+    " Respect preferences recorded in memory."
 )
 
 # s06: subagent gets its own system prompt — no task, no recursion

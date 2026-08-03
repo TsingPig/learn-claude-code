@@ -157,7 +157,7 @@ def run_todo_write(todos: list) -> str:
 # ═══════════════════════════════════════════════════════════
 #  NEW in s06: Subagent — fresh messages[], summary only
 # ═══════════════════════════════════════════════════════════
-def _extract_text(content) -> str:
+def _extract_text(content: list) -> str:
     """Extract text from message content blocks."""
     if not isinstance(content, list):
         return str(content)

@@ -3,3 +3,4 @@ python-dotenv>=1.0.0
 pyyaml>=6.0
 rich>=14.0.0
 typing_extensions>=4.5,<5
+numpy>=1.24  # appendix a01/a02: from-scratch KV cache & prompt cache demos

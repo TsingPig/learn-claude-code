@@ -12,12 +12,14 @@ except ImportError:
 
 from utils.tools import TOOLS, TOOL_HANDLERS
 from utils.hooks import trigger_hooks
-from utils.system import SYSTEM, MODEL, load_config
-from utils.context_compact import c1_snip_compact, c2_micro_compact, c3_tool_result_budget, c4_compact_history
-from utils.context_compact import reactive_compact, estimate_size, COMPACT_CHAR_LIMIT
+from utils.system import MODEL, SYSTEM
+from utils.context_compact import c1_snip_compact, c2_micro_compact, c3_tool_result_budget
+from utils.context_compact import reactive_compact, estimate_size, COMPACT_CHAR_LIMIT, c4_compact_history
+from utils.memory import load_memories, with_memory_context, extract_memories, consolidate_memories, read_memory_index
 
 import utils.stream as stream
 from rich import print
+from copy import deepcopy
 
 rounds_since_todo = 0
 
@@ -29,7 +31,15 @@ MAX_REACTIVE_RETRIES = 1  # retry limit for reactive compact
 def agent_loop(messages: list):
     global rounds_since_todo
     reactive_retries = 0
+    # s09: retrieve memory once per user turn; storage remains in local files
+    memory_index = read_memory_index()
+    messages_copy = deepcopy(messages)
     while True:
+        # s09: save pre-compression snapshot for accurate memory extraction
+        # pre_compress = [m if isinstance(m, dict) else {"role": m.get("role", ""), "content": str(m.get("content", ""))} for m in messages]
+
+        
+
         # s05: nag reminder — inject if model hasn't updated todos for 3 rounds
         if rounds_since_todo >= 3 and messages:
             messages.append({"role": "user", "content": "<reminder>Update your todos.</reminder>"}) # fmt: skip
@@ -49,8 +59,9 @@ def agent_loop(messages: list):
             messages[:] = c4_compact_history(messages)
 
         try:
+            # s09: memory is carried by a request-only user message view.
             # response = client.messages.create(model=MODEL,system=SYSTEM,messages=messages,tools=TOOLS,max_tokens=15000,timeout=180,) # fmt: skip
-            response = stream.create_message(model=MODEL, system=SYSTEM, messages=messages, tools=TOOLS, max_tokens=15000, timeout=180)  # fmt: skip
+            response = stream.create_message(model=MODEL, system=SYSTEM, messages=with_memory_context(messages, memory_index), tools=TOOLS, max_tokens=15000, timeout=180)  # fmt: skip
             reactive_retries = 0  # reset on successful API call
         except Exception as e:
             if ("prompt_too_long" in str(e).lower() or "too many tokens" in str(e).lower()) and reactive_retries < MAX_REACTIVE_RETRIES: # fmt: skip
@@ -137,6 +148,10 @@ def agent_loop(messages: list):
                 trigger_hooks("PostResponse", response)
 
         else:
+            # s09: extract from pre-compression snapshot for full fidelity
+            extract_memories(messages_copy)
+            consolidate_memories()
+
             # TODO: fix the max_token bugs.
             force = trigger_hooks("Stop", response)  # 当 force为None时，正常结束。
             if force:

@@ -235,4 +235,5 @@ analysis_progress.md
 
 # Scripts tmp directory
 scripts/tmp/
-/scripts/.inpluscode_cache
+/scripts/.inpluscode
+/tmp
