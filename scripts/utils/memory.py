@@ -56,7 +56,10 @@ def write_memory_file(name: str, mem_type: str, description: str, body: str):
     slug = name.lower().replace(" ", "-").replace("/", "-")
     filename = f"{slug}.md"
     filepath = MEMORY_DIR / filename
-    filepath.write_text(f"---\nname: {name}\ndescription: {description}\ntype: {mem_type}\n---\n\n{body}\n")
+    filepath.write_text(
+        f"---\nname: {name}\ndescription: {description}\ntype: {mem_type}\n---\n\n{body}\n",
+        encoding="utf-8",
+    )
     _rebuild_index()
     return filepath
 
@@ -67,12 +70,12 @@ def _rebuild_index():
     for f in sorted(MEMORY_DIR.glob("*.md")):
         if f.name == "MEMORY.md":
             continue
-        raw = f.read_text()
+        raw = f.read_text(encoding="utf-8")
         meta, body = _parse_frontmatter(raw)
         name = meta.get("name", f.stem)
         desc = meta.get("description", body.split("\n")[0][:80])
         lines.append(f"- [{name}]({f.name}) — {desc}")
-    MEMORY_INDEX.write_text("\n".join(lines) + "\n" if lines else "")
+    MEMORY_INDEX.write_text("\n".join(lines) + "\n" if lines else "", encoding="utf-8")
 
 
 # def read_memory_index() -> str:
@@ -96,7 +99,7 @@ def read_memory_file(filename: str) -> str | None:
     path = MEMORY_DIR / filename
     if not path.exists():
         return None
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 def list_memory_files() -> list[dict]:
@@ -105,7 +108,7 @@ def list_memory_files() -> list[dict]:
     for f in sorted(MEMORY_DIR.glob("*.md")):
         if f.name == "MEMORY.md":
             continue
-        raw = f.read_text()
+        raw = f.read_text(encoding="utf-8")
         meta, body = _parse_frontmatter(raw)
         result.append(
             {
