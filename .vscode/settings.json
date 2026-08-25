@@ -4,5 +4,7 @@
     "black-formatter.importStrategy": "fromEnvironment",
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
-    }
+    },
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python-envs.defaultPackageManager": "ms-python.python:pip"
 }
