@@ -93,14 +93,14 @@ function extractFunctions(
   lines: string[]
 ): { name: string; signature: string; startLine: number }[] {
   const functions: { name: string; signature: string; startLine: number }[] = [];
-  const funcPattern = /^def\s+(\w+)\((.*?)\)/;
+  const funcPattern = /^(async\s+)?def\s+(\w+)\((.*?)\)/;
 
   for (let i = 0; i < lines.length; i++) {
     const match = lines[i].match(funcPattern);
     if (!match) continue;
     functions.push({
-      name: match[1],
-      signature: `def ${match[1]}(${match[2]})`,
+      name: match[2],
+      signature: `${match[1] ?? ""}def ${match[2]}(${match[3]})`,
       startLine: i + 1,
     });
   }
@@ -108,12 +108,71 @@ function extractFunctions(
   return functions;
 }
 
+function assignmentBody(source: string, openIndex: number): string {
+  const open = source[openIndex];
+  const close = open === "[" ? "]" : "}";
+  let depth = 0;
+  let quote = "";
+  let triple = false;
+  let escaped = false;
+  let comment = false;
+
+  for (let index = openIndex; index < source.length; index++) {
+    const char = source[index];
+    const nextThree = source.slice(index, index + 3);
+    if (comment) {
+      if (char === "\n") comment = false;
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (triple && nextThree === quote.repeat(3)) {
+        quote = "";
+        triple = false;
+        index += 2;
+      } else if (!triple && char === quote) {
+        quote = "";
+      }
+      continue;
+    }
+    if (char === "#") {
+      comment = true;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      triple = nextThree === char.repeat(3);
+      if (triple) index += 2;
+      continue;
+    }
+    if (char === open) depth += 1;
+    if (char === close) {
+      depth -= 1;
+      if (depth === 0) return source.slice(openIndex, index + 1);
+    }
+  }
+  return "";
+}
+
 function extractTools(source: string): string[] {
+  const assignmentPattern = /^(?:TOOLS|BASE_TOOLS|BUILTIN_TOOLS|SUB_TOOLS|TASK_TOOL|WORKFLOW_TOOL)\s*=\s*([\[{])/gm;
   const toolPattern = /"name"\s*:\s*"([\w-]+)"/g;
   const tools = new Set<string>();
-  let match;
-  while ((match = toolPattern.exec(source)) !== null) {
-    tools.add(match[1]);
+  let assignment;
+  while ((assignment = assignmentPattern.exec(source)) !== null) {
+    const openIndex = assignment.index + assignment[0].lastIndexOf(assignment[1]);
+    const body = assignmentBody(source, openIndex);
+    let tool;
+    while ((tool = toolPattern.exec(body)) !== null) {
+      tools.add(tool[1]);
+    }
   }
   return Array.from(tools);
 }
@@ -134,6 +193,10 @@ function detectLocale(relPath: string): Locale {
 function extractDocVersion(filename: string): string | null {
   const match = filename.match(/^(s\d+[a-c]?)-/);
   return match ? match[1] : null;
+}
+
+function readText(filePath: string): string {
+  return fs.readFileSync(filePath, "utf-8").replace(/\r\n/g, "\n");
 }
 
 function titleFromMarkdown(content: string, fallback: string): string {
@@ -166,7 +229,7 @@ function copyChapterAssets(chapter: ChapterSource): ChapterImage[] {
 }
 
 function localeReadmeName(locale: Locale): string {
-  if (locale === "zh") return "README.md";
+  if (locale === "en") return "README.md";
   return `README.${locale}.md`;
 }
 
@@ -178,7 +241,7 @@ function rewriteChapterMarkdown(
   let next = content;
 
   next = next.replace(
-    /^\[中文\]\(README\.md\)\s*.\s*\[English\]\(README\.en\.md\)\s*.\s*\[日本語\]\(README\.ja\.md\)\n\n?/m,
+    /^\[English\]\(README\.md\)\s*.\s*\[中文\]\(README\.zh\.md\)\s*.\s*\[日本語\]\(README\.ja\.md\)\n\n?/m,
     ""
   );
 
@@ -207,18 +270,24 @@ function rewriteChapterMarkdown(
 }
 
 function buildRootVersions(chapters: ChapterSource[]): AgentVersion[] {
-  return chapters.map((chapter) => {
-    const source = fs.readFileSync(chapter.codePath, "utf-8");
+  const versions: AgentVersion[] = [];
+  for (const chapter of chapters) {
+    const source = readText(chapter.codePath);
     const lines = source.split("\n");
     const meta = VERSION_META[chapter.id];
+    const localTools = extractTools(source);
+    const inheritedId = source.match(/^INHERITS_TOOLS_FROM\s*=\s*"(s\d{2})"/m)?.[1];
+    const inheritedTools = inheritedId
+      ? versions.find((version) => version.id === inheritedId)?.tools ?? []
+      : [];
 
-    return {
+    versions.push({
       id: chapter.id,
       filename: `${chapter.dirName}/code.py`,
       title: meta?.title ?? chapter.id,
       subtitle: meta?.subtitle ?? "",
       loc: countLoc(lines),
-      tools: extractTools(source),
+      tools: Array.from(new Set([...inheritedTools, ...localTools])),
       newTools: [] as string[],
       coreAddition: meta?.coreAddition ?? "",
       keyInsight: meta?.keyInsight ?? "",
@@ -227,8 +296,9 @@ function buildRootVersions(chapters: ChapterSource[]): AgentVersion[] {
       layer: meta?.layer ?? "tools",
       source,
       images: copyChapterAssets(chapter),
-    };
-  });
+    });
+  }
+  return versions;
 }
 
 function buildLegacyVersions(): AgentVersion[] {
@@ -244,7 +314,7 @@ function buildLegacyVersions(): AgentVersion[] {
       if (!id) return null;
 
       const filePath = path.join(LEGACY_AGENTS_DIR, filename);
-      const source = fs.readFileSync(filePath, "utf-8");
+      const source = readText(filePath);
       const lines = source.split("\n");
       const meta = VERSION_META[id];
 
@@ -280,7 +350,7 @@ function buildRootDocs(chapters: ChapterSource[]): DocContent[] {
       const filePath = path.join(chapter.dirPath, filename);
       if (!fs.existsSync(filePath)) continue;
 
-      const raw = fs.readFileSync(filePath, "utf-8");
+      const raw = readText(filePath);
       const content = rewriteChapterMarkdown(raw, chapter, locale);
       docs.push({
         version: chapter.id,
@@ -310,7 +380,7 @@ function buildLegacyDocs(): DocContent[] {
 
       const relPath = path.join(locale, filename);
       const filePath = path.join(LEGACY_DOCS_DIR, relPath);
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = readText(filePath);
       docs.push({
         version,
         locale: detectLocale(relPath),

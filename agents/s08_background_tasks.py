@@ -132,7 +132,7 @@ def run_bash(command: str) -> str:
 
 def run_read(path: str, limit: int = None) -> str:
     try:
-        lines = safe_path(path).read_text().splitlines()
+        lines = safe_path(path).read_text(encoding="utf-8").splitlines()
         if limit and limit < len(lines):
             lines = lines[:limit] + [f"... ({len(lines) - limit} more)"]
         return "\n".join(lines)[:50000]
@@ -143,7 +143,7 @@ def run_write(path: str, content: str) -> str:
     try:
         fp = safe_path(path)
         fp.parent.mkdir(parents=True, exist_ok=True)
-        fp.write_text(content)
+        fp.write_text(content, encoding="utf-8")
         return f"Wrote {len(content)} bytes"
     except Exception as e:
         return f"Error: {e}"
@@ -151,10 +151,10 @@ def run_write(path: str, content: str) -> str:
 def run_edit(path: str, old_text: str, new_text: str) -> str:
     try:
         fp = safe_path(path)
-        c = fp.read_text()
+        c = fp.read_text(encoding="utf-8")
         if old_text not in c:
             return f"Error: Text not found in {path}"
-        fp.write_text(c.replace(old_text, new_text, 1))
+        fp.write_text(c.replace(old_text, new_text, 1), encoding="utf-8")
         return f"Edited {path}"
     except Exception as e:
         return f"Error: {e}"
@@ -185,15 +185,42 @@ TOOLS = [
 ]
 
 
+def append_user_notice(messages: list, text: str) -> None:
+    """Add an async notice without creating adjacent user messages."""
+    block = {"type": "text", "text": text}
+    if messages and messages[-1].get("role") == "user":
+        content = messages[-1].get("content", "")
+        if isinstance(content, list):
+            messages[-1]["content"] = [*content, block]
+        else:
+            messages[-1]["content"] = [
+                {"type": "text", "text": str(content)},
+                block,
+            ]
+        return
+    messages.append({"role": "user", "content": [block]})
+
+
+def inject_background_notifications(messages: list) -> int:
+    notifs = BG.drain_notifications()
+    if not notifs or not messages:
+        return 0
+    notif_text = "\n".join(
+        f"[bg:{n['task_id']}] {n['status']}: {n['result']}" for n in notifs
+    )
+    append_user_notice(
+        messages,
+        f"<background-results>\n{notif_text}\n</background-results>",
+    )
+    return len(notifs)
+
+
 def agent_loop(messages: list):
     while True:
-        # Drain background notifications and inject as system message before LLM call
-        notifs = BG.drain_notifications()
-        if notifs and messages:
-            notif_text = "\n".join(
-                f"[bg:{n['task_id']}] {n['status']}: {n['result']}" for n in notifs
-            )
-            messages.append({"role": "user", "content": f"<background-results>\n{notif_text}\n</background-results>"})
+        # Drain background notifications and inject before the next LLM call.
+        # Merge into the trailing user message when possible to avoid emitting
+        # two consecutive user messages (which is messy for caching/debugging).
+        inject_background_notifications(messages)
         response = client.messages.create(
             model=MODEL, system=SYSTEM, messages=messages,
             tools=TOOLS, max_tokens=8000,
