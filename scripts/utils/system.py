@@ -6,18 +6,23 @@ from dotenv import load_dotenv
 from utils.shell import SHELL
 from utils.skill import SkillRegistry
 
-load_dotenv(override=True)  # 读取 .env 文件，把里面的变量加载进系统环境变量。
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+
+load_dotenv(PROJECT_ROOT / ".env", override=True)  # 从项目根目录加载环境变量。
 
 
-def load_config(path="scripts/config.yaml") -> dict:
-    if not Path(path).exists():
-        print(f"Warning: Config file '{path}' not found. Using default config.")
+def load_config(path: str | Path | None = None) -> dict:
+    config_path = Path(path) if path is not None else CONFIG_PATH
+    if not config_path.exists():
+        print(f"Warning: Config file '{config_path}' not found. Using default config.")
         return {}
-    with open(path, "r", encoding="utf-8") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
-WORKDIR = Path(load_config().get("paths", {}).get("workspace", os.getcwd()))
+workspace = Path(load_config().get("paths", {}).get("workspace", ".")).expanduser()
+WORKDIR = (workspace if workspace.is_absolute() else PROJECT_ROOT / workspace).resolve()
 
 
 MESSAGES_DIR = WORKDIR / ".inpluscode" / ".sessions"  # WORKDIR / ".transcripts"
@@ -36,7 +41,7 @@ client = Anthropic(
     base_url=os.getenv("ANTHROPIC_BASE_URL"),
     auth_token=os.getenv("ANTHROPIC_AUTH_TOKEN"),
 )
-skill_registry = SkillRegistry(WORKDIR)
+skill_registry = SkillRegistry(PROJECT_ROOT)
 skill_registry.scan_skills()
 
 
