@@ -24,17 +24,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configure mirror deploy key
-        env:
-          DEPLOY_KEY: ${{ secrets.INPLUSCODE_DEPLOY_KEY }}
-        run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-
       - name: Build scripts-only history
         run: git subtree split --prefix=scripts --branch inpluscode-sync
 
       - name: Publish mirror
-        run: git push git@github.com:InplusLab-Agent/InplusCode.git inpluscode-sync:main
+        env:
+          GH_TOKEN: ${{ secrets.INPLUSCODE_SYNC_TOKEN }}
+        run: |
+          gh auth setup-git
+          git push https://github.com/InplusLab-Agent/InplusCode.git inpluscode-sync:main
